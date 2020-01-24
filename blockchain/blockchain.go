@@ -78,13 +78,13 @@ func InitialiseBlockChain() *BlockChain {
 	// Storage variable for the latest hash in the chain
 	var lh []byte
 
-	// Create an instance of the database and set the path to the constant above
+	// Create an instance of the database options and set the path to the constant above
 	// Both the directory and value directory live on the same path
-	db := badger.DefaultOptions("")
-	db.Dir = dbPath
-	db.ValueDir = dbPath
+	o := badger.DefaultOptions("")
+	o.Dir = dbPath
+	o.ValueDir = dbPath
 
-	// Open the connection to the database, handling any errors
+	// Open the connection to the database with the options, creating the database variable, handling any errors
 	db, err := badger.Open(o)
 	HandleError(err)
 
@@ -112,8 +112,9 @@ func InitialiseBlockChain() *BlockChain {
 			lh = ib.Hash
 
 			return err
-		} // If there is already a blockchain initialised do the following...
-		else {
+		} else {
+			// If there is already a blockchain initialised do the following...
+
 			// Use the transaction to get the item stored under lh, handling any errors
 			item, err := txn.Get([]byte("lh"))
 			HandleError(err)
