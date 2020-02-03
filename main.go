@@ -10,16 +10,16 @@ import (
 	"github.com/liamcf44/go-blockchain.git/blockchain"
 )
 
-// CLI stores a blockchain to allow the Command Line Interface to interact with it 
-type CLI struct {
-	blockchain *blockchain.BlockChain
-}
+// CLI stores a blockchain to allow the Command Line Interface to interact with it
+type CLI struct{}
 
 // Prints out the different CLI options available
 func (cli *CLI) printUsage() {
 	fmt.Println("/* Usage /*")
-	fmt.Println(" add -block BLOCK_DATA - add a block to teh chain")
+	fmt.Println(" getbalance -address ADDRESS - get the balance for an address")
+	fmt.Println(" createblockchain -address ADDRESS creates a blockchain and sends genesis reward to address")
 	fmt.Println(" print - Prints the blocks in the chain")
+	fmt.Println(" send -from FROM -to TO -amount AMOUNT - Send amount of coins")
 }
 
 // Validates the given CLI arguments
@@ -31,17 +31,16 @@ func (cli *CLI) validateArgs() {
 	}
 }
 
-// Handles the 'add --block' CLI option
-func (cli *CLI) addBlock(d string) {
-	// Pass the given data to the AppendBlock blockchain method
-	cli.blockchain.AppendBlock(d)
-	fmt.Println("Added Block")
-}
-
 // Handles the 'print' CLI option
 func (cli *CLI) printChain() {
-	// Create a new iterator to cycle through the current blockchain
-	it := cli.blockchain.CreateIterator()
+	// Create a chain with ContinueBlockChain and a blank address
+	bc := blockchain.ContinueBlockChain("")
+
+	// Defer the closing of the chain's database
+	defer bc.Database.Close()
+
+	// Create a new iterator to cycle through the blockchain
+	it := bc.CreateIterator()
 
 	// Set up a loop...
 	for {
@@ -50,7 +49,6 @@ func (cli *CLI) printChain() {
 
 		// Print out the various parts of the block
 		fmt.Printf("Hash ==> %x\n", b.Hash)
-		fmt.Printf("Data ==> %s\n", b.Data)
 		fmt.Printf("PreviousHash ==> %x\n", b.PreviousHash)
 
 		// Create a Proof of Work for the block and print if it is valid
@@ -66,28 +64,101 @@ func (cli *CLI) printChain() {
 	}
 }
 
+// createBlockChain creates a new blockchain with a given address
+func (cli *CLI) createBlockChain(a string) {
+	// Create the new chain with InitialiseBlockChain
+	bc := blockchain.InitialiseBlockChain(a)
+
+	// Close the database connection
+	bc.Database.Close()
+
+	fmt.Println("New blockchain created!")
+}
+
+// getBalance returns the balance for a given address
+func (cli *CLI) getBalance(a string) {
+	// Create the chain with ContinueBlockChain
+	bc := blockchain.ContinueBlockChain(a)
+
+	// Defer the closing of the chains database
+	defer bc.Database.Close()
+
+	// Holding variable for the balance
+	b := 0
+
+	// Get the unspent transaction outputs for the address
+	uto := bc.GetUnspentTransactionOutputs(a)
+
+	// Loop through the unspent ouputs
+	for _, o := range uto {
+		// Add each outputs value to the balance
+		b += o.Value
+	}
+
+	// Print out the balance
+	fmt.Printf("Balance for %s: %d\n", a, b)
+
+}
+
+// send is a function to send an amount from one address to another
+func (cli *CLI) send(f, t string, a int) {
+	// Create the blockchain with ContinueBlockChain and the from address
+	bc := blockchain.ContinueBlockChain(f)
+
+	// Defer the closing of the database
+	defer bc.Database.Close()
+
+	// Create a new transaction with the address, the amount and the chain
+	tx := blockchain.NewTransaction(f, t, a, bc)
+
+	// Append the transaction to the chain
+	bc.AppendBlock([]*blockchain.Transaction{tx})
+
+	fmt.Printf("Successfully sent %d, from %s to %s\n", a, f, t)
+}
+
 // Function to run the CLI
 func (cli *CLI) run() {
 	// Make a call to validate the given arguments
 	cli.validateArgs()
 
 	// Set the flags for each option
-	addBlockCmd := flag.NewFlagSet("add", flag.ExitOnError)
-	printChainCmd := flag.NewFlagSet("print", flag.ExitOnError)
-	addBlockData := addBlockCmd.String("block", "", "Block data")
+	getBalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
+	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
+	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
+	printCmd := flag.NewFlagSet("print", flag.ExitOnError)
+
+	// Extract the information for each command
+	getBalanceAddress := getBalanceCmd.String("address", "", "The address to get balance for")
+	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
+	sendFrom := sendCmd.String("from", "", "Source wallet address")
+	sendTo := sendCmd.String("to", "", "Destination wallet address")
+	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
 
 	// Check which argument has been provided
 	switch os.Args[1] {
-	// For add...
-	case "add":
+	// For getbalance...
+	case "getbalance":
 		// Parse the arguemnts through addBlockCmd, handling any errors.
-		err := addBlockCmd.Parse(os.Args[2:])
+		err := getBalanceCmd.Parse(os.Args[2:])
+		blockchain.HandleError(err)
+
+	// For createblockchain...
+	case "createblockchain":
+		// Parse the arguemnts through printChainCmd, handling any errors.
+		err := createBlockchainCmd.Parse(os.Args[2:])
+		blockchain.HandleError(err)
+
+	// For send...
+	case "send":
+		// Parse the arguemnts through printChainCmd, handling any errors.
+		err := sendCmd.Parse(os.Args[2:])
 		blockchain.HandleError(err)
 
 	// For print...
 	case "print":
 		// Parse the arguemnts through printChainCmd, handling any errors.
-		err := printChainCmd.Parse(os.Args[2:])
+		err := printCmd.Parse(os.Args[2:])
 		blockchain.HandleError(err)
 
 	// In any other scenario...
@@ -97,22 +168,46 @@ func (cli *CLI) run() {
 		runtime.Goexit()
 	}
 
+	// If arguments have been parsed through getBalanceCmd do the following...
+	if getBalanceCmd.Parsed() {
 
-	// If arguments have been parsed through addBlockCmd do the following...
-	if addBlockCmd.Parsed() {
-
-		// Check if the data passed is a blank string, if so print the usage and exit
-		if *addBlockData == "" {
-			addBlockCmd.Usage()
+		// Check if the address passed is a blank string, if so print the usage and exit
+		if *getBalanceAddress == "" {
+			getBalanceCmd.Usage()
 			runtime.Goexit()
 		}
 
-		// Otherwise make a call to addBlock with the data
-		cli.addBlock(*addBlockData)
+		// Otherwise make a call to getBalance with the address
+		cli.getBalance(*getBalanceAddress)
 	}
 
-	// If arguments have been parsed through printChainCmd do the following...
-	if printChainCmd.Parsed() {
+	// If arguments have been parsed through createBlockchainCmd do the following...
+	if createBlockchainCmd.Parsed() {
+
+		// Check if the address passed is a blank string, if so print the usage and exit
+		if *createBlockchainAddress == "" {
+			createBlockchainCmd.Usage()
+			runtime.Goexit()
+		}
+
+		// Otherwise make a call to getBalance with the address
+		cli.createBlockChain(*createBlockchainAddress)
+	}
+
+	// If arguments have been parsed through sendCmd do the following...
+	if sendCmd.Parsed() {
+		// Check if any of the given address are blank, or if there i no amount
+		if *sendFrom == "" || *sendTo == "" || *sendAmount <= 0 {
+			sendCmd.Usage()
+			runtime.Goexit()
+		}
+
+		// Otherwise make a call to send with the details
+		cli.send(*sendFrom, *sendTo, *sendAmount)
+	}
+
+	// If arguments have been parsed through printCmd do the following...
+	if printCmd.Parsed() {
 		// Make a call to printChain
 		cli.printChain()
 	}
@@ -124,12 +219,8 @@ func main() {
 	// Defer exiting the process
 	defer os.Exit(0)
 
-	// Make a call to InitialiseBlockchain and defer the database closing
-	bc := blockchain.InitialiseBlockChain()
-	defer bc.Database.Close()
-
-	// Use the returned blockchain to create a new CLI struct
-	cli := CLI{bc}
+	// Create the new command line struct
+	cli := CLI{}
 
 	// Run the CLI
 	cli.run()

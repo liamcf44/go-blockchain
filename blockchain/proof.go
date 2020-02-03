@@ -36,11 +36,11 @@ func NewProof(b *Block) *ProofOfWork {
 
 // InitialiseData is a method on the ProofOfWork struct that takes the current counter and returns data
 func (pow *ProofOfWork) InitialiseData(c int) []byte {
-	// Create the data by concatting the elements below into a new byte slice 
+	// Create the data by concatting the elements below into a new byte slice
 	d := bytes.Join(
 		[][]byte{
 			pow.Block.PreviousHash,
-			pow.Block.Data,
+			pow.Block.HashTransactions(),
 			ToHex(int64(c)),
 			ToHex(int64(Difficulty)),
 		},
@@ -79,7 +79,6 @@ func (pow *ProofOfWork) ValidateProof() bool {
 	// Compare the hash with the target to check if it has been validated
 	return ih.Cmp(pow.Target) == -1
 }
-
 
 // Run is a method on the ProofOfWork struct to run a proof of work process
 func (pow *ProofOfWork) Run() (int, []byte) {

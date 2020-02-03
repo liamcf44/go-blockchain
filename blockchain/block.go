@@ -3,6 +3,7 @@ package blockchain
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
 	"log"
@@ -11,15 +12,33 @@ import (
 // Block stores all the parts of a block, including the hash of the previous block
 type Block struct {
 	Hash         []byte
-	Data         []byte
+	Transactions []*Transaction
 	PreviousHash []byte
 	Counter      int
 }
 
+// HashTransactions hashes the transactions on a block
+func (b *Block) HashTransactions() []byte {
+	// Create holding variable for the transaction hashes and the return hash
+	var th [][]byte
+	var h [32]byte
+
+	// For each of the blocks transactions, append the ID to the transaction hashes slice
+	for _, t := range b.Transactions {
+		th = append(th, t.ID)
+	}
+
+	// Finally create a hash of the transaction hashes
+	h = sha256.Sum256(bytes.Join(th, []byte{}))
+
+	return h[:]
+
+}
+
 // CreateBlock takes some data and a previous hash and returns a new block
-func CreateBlock(d string, ph []byte) *Block {
+func CreateBlock(t []*Transaction, ph []byte) *Block {
 	// Create a new instance of Block
-	b := &Block{[]byte{}, []byte(d), ph, 0}
+	b := &Block{[]byte{}, t, ph, 0}
 
 	// Create a new proof of work for the block
 	pow := NewProof(b)
@@ -35,9 +54,9 @@ func CreateBlock(d string, ph []byte) *Block {
 }
 
 // CreateInitialBlock makes a first block in a chain
-func CreateInitialBlock() *Block {
+func CreateInitialBlock(c *Transaction) *Block {
 	// Create the intial block
-	return CreateBlock("Initial Block", []byte{})
+	return CreateBlock([]*Transaction{c}, []byte{})
 }
 
 // Serialise is a method on the Block struct that serialises the block's data
