@@ -12,23 +12,11 @@ import (
 // Transaction stores the relevant parts of a blockchain transaction, containing multiple inputs and outputs
 type Transaction struct {
 	ID      []byte
-	Inputs  []TInput
-	Outputs []TOutput
+	Inputs  []TxInput
+	Outputs []TxOutput
 }
 
-// TOutput is the output part of a transaction, containing a value and a public key
-type TOutput struct {
-	Value  int
-	PubKey string
-}
-
-// TInput is the input part of a transaction, containing an ID, an out value and a signature
-type TInput struct {
-	ID  []byte
-	Out int
-	Sig string
-}
-
+// SetID creates a sha256 hash ID for a transaction
 func (t *Transaction) SetID() {
 	// Create some data as a buffer and a hash variable
 	var d bytes.Buffer
@@ -47,7 +35,7 @@ func (t *Transaction) SetID() {
 
 }
 
-// Function to handle the coinbase (the original transaction)
+// CoinbaseTx handles the coinbase (the original transaction)
 func CoinbaseTx(r, d string) *Transaction {
 	// If the data is empty then assign data to default string
 	if d == "" {
@@ -55,11 +43,11 @@ func CoinbaseTx(r, d string) *Transaction {
 	}
 
 	// Create a transaction input and output with the given data and recepient
-	tIn := TInput{[]byte{}, -1, d}
-	tOut := TOutput{100, r}
+	tIn := TxInput{[]byte{}, -1, d}
+	tOut := TxOutput{100, r}
 
 	// Use the above to construct a new transaction
-	t := Transaction{nil, []TInput{tIn}, []TOutput{tOut}}
+	t := Transaction{nil, []TxInput{tIn}, []TxOutput{tOut}}
 
 	// Call the SetID method
 	t.SetID()
@@ -68,27 +56,17 @@ func CoinbaseTx(r, d string) *Transaction {
 	return &t
 }
 
-// Checks whether a transaction instance is a coinbase (the original transaction)
+// IsCoinbase checks whether a transaction instance is a coinbase (the original transaction)
 func (t *Transaction) IsCoinbase() bool {
 	// Check to see there is just 1 input and that it is not linked to any other transactions
 	return len(t.Inputs) == 1 && len(t.Inputs[0].ID) == 0 && t.Inputs[0].Out == -1
 }
 
-// Checks whether an input can unlock some given data
-func (i *TInput) CanUnlock(d string) bool {
-	return i.Sig == d
-}
-
-// Checks whether an output can be unlocked
-func (o *TOutput) CanBeUnlocked(d string) bool {
-	return o.PubKey == d
-}
-
 // NewTransaction takes a from and to address, an amount and a block chain and makes a transaction to return
 func NewTransaction(f, t string, a int, bc *BlockChain) *Transaction {
 	// Create two holding variables for the inputs and outputs
-	var i []TInput
-	var o []TOutput
+	var i []TxInput
+	var o []TxOutput
 
 	// Get the accumulated value and the unspent outputs for the from address, up to the specified amount
 	acc, uo := bc.GetSpendableOutputs(f, a)
@@ -107,7 +85,7 @@ func NewTransaction(f, t string, a int, bc *BlockChain) *Transaction {
 		// Loop through the outputs
 		for _, out := range outs {
 			// Create a new transcation input from the ID, the output and the from address
-			in := TInput{tID, out, f}
+			in := TxInput{tID, out, f}
 
 			// Append the input to the holding variable
 			i = append(i, in)
@@ -115,12 +93,12 @@ func NewTransaction(f, t string, a int, bc *BlockChain) *Transaction {
 	}
 
 	// Append a new transaction output, with the given amount and the to address
-	o = append(o, TOutput{a, t})
+	o = append(o, TxOutput{a, t})
 
 	// If the accumulated ammount is more than the given ammount then trim the ouput
 	if acc > a {
 		// Append a new transaction output with some money sent back to the from address
-		o = append(o, TOutput{acc - a, f})
+		o = append(o, TxOutput{acc - a, f})
 	}
 
 	// Create a new transaction with the inputs and outputs and set its ID

@@ -23,8 +23,8 @@ type BlockChain struct {
 	Database   *badger.DB
 }
 
-// BlockChainIterator holds the current hash and a pointer to the database
-type BlockChainIterator struct {
+// Iterator holds the current hash and a pointer to the database
+type Iterator struct {
 	CurrentHash []byte
 	Database    *badger.DB
 }
@@ -264,9 +264,9 @@ func (bc *BlockChain) GetUnspentTransactions(a string) []Transaction {
 }
 
 // GetUnspentTransactionOutputs is a method on BlockChain which returns the outputs for each unspent transaction
-func (bc *BlockChain) GetUnspentTransactionOutputs(a string) []TOutput {
+func (bc *BlockChain) GetUnspentTransactionOutputs(a string) []TxOutput {
 	// Create a holding variable for the unspent transaction outputs
-	var uto []TOutput
+	var uto []TxOutput
 
 	// Get the unspent transactions for an address
 	ut := bc.GetUnspentTransactions(a)
@@ -328,17 +328,17 @@ Work:
 	return acc, uo
 }
 
-// CreateIterator is a method on the BlockChain struct that creates a new BlockChainIterator
-func (bc *BlockChain) CreateIterator() *BlockChainIterator {
+// CreateIterator is a method on the BlockChain struct that creates a new Iterator
+func (bc *BlockChain) CreateIterator() *Iterator {
 	// Create the iterator with the current latest hash and the database pointer
-	it := &BlockChainIterator{bc.LatestHash, bc.Database}
+	it := &Iterator{bc.LatestHash, bc.Database}
 
 	// return the iterator
 	return it
 }
 
-// Next is a method on the BlockChainIterator struct that returns the next block in the chain
-func (it *BlockChainIterator) Next() *Block {
+// Next is a method on the Iterator struct that returns the next block in the chain
+func (it *Iterator) Next() *Block {
 	// Storage variable for the raw block returned from the database and the eventual block returned from the function
 	var rb []byte
 	var b *Block
